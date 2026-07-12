@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OrchestrAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true">
+      <div class="orb orb-a"></div>
+      <div class="orb orb-b"></div>
+      <div class="orb orb-c"></div>
+      <div class="grain"></div>
+    </div>
+
+    <div class="app">
+      <header class="header reveal">
+        <div class="header-brand">
+          <div class="logo-mark">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M8 20h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="12" cy="11" r="2" fill="currentColor"/>
+            </svg>
+          </div>
+          <div>
+            <h1>OrchestrAI</h1>
+            <p>AI browser automation with live preview</p>
+          </div>
+        </div>
+        <span class="badge" id="connection-badge">
+          <span class="badge-dot"></span>
+          Connecting...
+        </span>
+      </header>
+
+      <main class="layout">
+        <section class="panel panel-main reveal reveal-delay-1">
+          <div class="section">
+            <div class="section-label">
+              <span class="label-icon">01</span>
+              <h2>Task</h2>
+            </div>
+            <p class="hint">Describe what the agent should do in the browser.</p>
+            <textarea
+              id="task-input"
+              rows="5"
+              placeholder="Example: Go to code.visualstudio.com and download VS Code for macOS."
+            ></textarea>
+          </div>
+
+          <div class="section">
+            <div class="section-label">
+              <span class="label-icon">02</span>
+              <h2>Model Provider</h2>
+            </div>
+            <p class="hint">Groq is the default and uses <code>GROQ_API_KEY</code> from server environment variables. OpenAI is optional BYOK.</p>
+
+            <div class="provider-options">
+              <label class="provider-card selected" data-provider="groq">
+                <input type="radio" name="provider" value="groq" checked />
+                <div class="provider-glow"></div>
+                <div class="provider-content">
+                  <span class="provider-name">Groq</span>
+                  <span class="provider-note">Default · server env key</span>
+                </div>
+              </label>
+
+              <label class="provider-card" data-provider="openai">
+                <input type="radio" name="provider" value="openai" />
+                <div class="provider-glow"></div>
+                <div class="provider-content">
+                  <span class="provider-name">OpenAI</span>
+                  <span class="provider-note">BYOK · your own key</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="section settings-panel" id="groq-settings">
+            <div class="env-note">
+              <span class="env-icon">◈</span>
+              Groq key loaded from <code>GROQ_API_KEY</code> in <code>.env</code> — nothing to enter here.
+            </div>
+            <label class="field-label" for="groq-model">Model</label>
+            <select id="groq-model">
+              <option value="meta-llama/llama-4-scout-17b-16e-instruct" selected>
+                Llama 4 Scout (recommended)
+              </option>
+              <option value="openai/gpt-oss-20b">GPT-OSS 20B</option>
+              <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
+            </select>
+          </div>
+
+          <div class="section settings-panel hidden" id="openai-settings">
+            <label class="field-label" for="openai-key">OpenAI API Key (BYOK)</label>
+            <input
+              id="openai-key"
+              type="password"
+              placeholder="sk-..."
+              autocomplete="off"
+            />
+            <p class="field-help">Sent only to your local backend when you run a task.</p>
+            <label class="field-label" for="openai-model">Model</label>
+            <select id="openai-model">
+              <option value="gpt-4o" selected>GPT-4o</option>
+              <option value="gpt-4o-mini">GPT-4o Mini</option>
+              <option value="gpt-4.1">GPT-4.1</option>
+            </select>
+          </div>
+
+          <div class="section row">
+            <label class="toggle">
+              <input id="headless" type="checkbox" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span class="toggle-label">Headless mode</span>
+            </label>
+            <p class="field-help">Off = real browser window + live screenshots in the preview panel.</p>
+          </div>
+
+          <div class="actions">
+            <button id="run-btn" type="button" class="btn btn-primary">
+              <span class="btn-shine"></span>
+              <span class="btn-text">Run Task</span>
+            </button>
+            <button id="stop-btn" type="button" class="btn btn-secondary" disabled>Stop</button>
+          </div>
+        </section>
+
+        <aside class="panel panel-side reveal reveal-delay-2">
+          <div class="section">
+            <div class="preview-header">
+              <div class="section-label compact">
+                <span class="label-icon live-icon">●</span>
+                <h2>Live Preview</h2>
+              </div>
+              <span id="preview-step" class="preview-step">Waiting</span>
+            </div>
+            <div id="preview-frame" class="preview-frame">
+              <div class="preview-scanline"></div>
+              <div class="preview-empty">
+                <span class="preview-empty-icon">⬚</span>
+                Screenshots appear here as the agent works
+              </div>
+              <img id="preview-image" class="preview-image hidden" alt="Browser screenshot" />
+            </div>
+            <div id="preview-url" class="preview-url">No page loaded</div>
+          </div>
+
+          <div class="section">
+            <div class="section-label compact">
+              <span class="label-icon">03</span>
+              <h2>Activity</h2>
+            </div>
+            <div id="log" class="log">
+              <div class="log-empty">No activity yet. Run a task to see steps here.</div>
+            </div>
+          </div>
+
+          <div class="section status-card">
+            <h3>Status</h3>
+            <dl>
+              <div>
+                <dt>Backend</dt>
+                <dd id="status-backend"><span class="status-pill">Checking...</span></dd>
+              </div>
+              <div>
+                <dt>Provider</dt>
+                <dd id="status-provider">Groq</dd>
+              </div>
+              <div>
+                <dt>Browser</dt>
+                <dd id="status-browser"><span class="status-pill idle">Idle</span></dd>
+              </div>
+            </dl>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

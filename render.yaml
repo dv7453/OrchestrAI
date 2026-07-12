@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: orchestrai
+    runtime: docker
+    plan: starter
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: meta-llama/llama-4-scout-17b-16e-instruct
+      - key: BROWSER_USE_HEADLESS
+        value: "true"
+      - key: ANONYMIZED_TELEMETRY
+        value: "false"
+      - key: PYTHONUNBUFFERED
+        value: "1"

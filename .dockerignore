@@ -1,0 +1,12 @@
+.venv
+.env
+.git
+.gitignore
+__pycache__
+.pytest_cache
+*.pyc
+.DS_Store
+*.log
+debug.log
+info.log
+.agent_history.gif
