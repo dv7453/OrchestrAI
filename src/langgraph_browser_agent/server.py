@@ -34,33 +34,56 @@ class RunRequest(BaseModel):
     model: str | None = None
     groq_api_key: str | None = None
     openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    mistral_api_key: str | None = None
     headless: bool = False
     max_steps: int = 50
     step_timeout: int = 60
+
+
+SUPPORTED_PROVIDERS = ("groq", "openai", "claude", "mistral")
 
 
 def _sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
+def _provider_api_key(request: RunRequest) -> str:
+    mapping = {
+        "groq": request.groq_api_key,
+        "openai": request.openai_api_key,
+        "claude": request.anthropic_api_key,
+        "mistral": request.mistral_api_key,
+    }
+    return (mapping.get(request.provider) or "").strip()
+
+
 def _build_llm(request: RunRequest):
-    from browser_use import ChatGroq, ChatOpenAI
+    from browser_use import ChatAnthropic, ChatGroq, ChatMistral, ChatOpenAI
+
+    api_key = _provider_api_key(request)
+    if not api_key:
+        raise ValueError(f"{request.provider} API key is required (BYOK).")
 
     if request.provider == "openai":
-        api_key = (request.openai_api_key or "").strip()
-        if not api_key:
-            raise ValueError("OpenAI API key is required (BYOK).")
-        model = request.model or "gpt-4o"
-        return ChatOpenAI(model=model, api_key=api_key)
+        return ChatOpenAI(model=request.model or "gpt-4o", api_key=api_key)
 
-    if request.provider != "groq":
-        raise ValueError(f"Unsupported provider: {request.provider}")
+    if request.provider == "claude":
+        return ChatAnthropic(
+            model=request.model or "claude-sonnet-4-5",
+            api_key=api_key,
+        )
 
-    api_key = (request.groq_api_key or "").strip()
-    if not api_key:
-        raise ValueError("Groq API key is required (BYOK).")
-    model = request.model or "openai/gpt-oss-20b"
-    return ChatGroq(model=model, api_key=api_key)
+    if request.provider == "mistral":
+        return ChatMistral(
+            model=request.model or "mistral-medium-latest",
+            api_key=api_key,
+        )
+
+    if request.provider == "groq":
+        return ChatGroq(model=request.model or "openai/gpt-oss-20b", api_key=api_key)
+
+    raise ValueError(f"Unsupported provider: {request.provider}")
 
 
 def _browser_headless(request: RunRequest) -> bool:
@@ -157,6 +180,7 @@ async def health():
     return {
         "status": "ok",
         "byok": True,
+        "providers": list(SUPPORTED_PROVIDERS),
         "default_provider": "groq",
         "default_model": "openai/gpt-oss-20b",
     }
@@ -178,15 +202,21 @@ async def stop_run(run_id: str):
 
 @app.post("/api/run")
 async def run_task(request: RunRequest):
-    if request.provider == "groq" and not (request.groq_api_key or "").strip():
+    if request.provider not in SUPPORTED_PROVIDERS:
         raise HTTPException(
             status_code=400,
-            detail="Groq API key is required (BYOK).",
+            detail=f"Unsupported provider. Use one of: {', '.join(SUPPORTED_PROVIDERS)}",
         )
-    if request.provider == "openai" and not (request.openai_api_key or "").strip():
+    if not _provider_api_key(request):
+        label = {
+            "groq": "Groq",
+            "openai": "OpenAI",
+            "claude": "Anthropic (Claude)",
+            "mistral": "Mistral",
+        }[request.provider]
         raise HTTPException(
             status_code=400,
-            detail="OpenAI API key is required (BYOK).",
+            detail=f"{label} API key is required (BYOK).",
         )
 
     run_id = os.urandom(8).hex()

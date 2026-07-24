@@ -24,7 +24,9 @@ cp .env.template .env
 cd frontend && ./start.sh
 ```
 
-Open **http://127.0.0.1:8765** and paste your own **Groq** or **OpenAI** API key in the UI (full BYOK).
+Open **http://127.0.0.1:8765** and paste your own API key in the UI (full BYOK).
+
+Supported providers: **Groq**, **OpenAI**, **Claude (Anthropic)**, **Mistral**.
 
 ## Environment
 
@@ -35,7 +37,8 @@ OrchestrAI is **full BYOK** — LLM keys are not required on the server. Users p
 | `BROWSER_USE_HEADLESS` | No | `true` on cloud / Docker |
 | `PORT` | No | Server port (Render sets this) |
 
-API run body fields: `groq_api_key` or `openai_api_key` depending on `provider`.
+API `provider` values: `groq` | `openai` | `claude` | `mistral`  
+Matching key fields: `groq_api_key` | `openai_api_key` | `anthropic_api_key` | `mistral_api_key`
 
 ## Architecture
 

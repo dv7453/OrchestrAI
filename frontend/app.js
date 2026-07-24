@@ -1,15 +1,47 @@
 const API_BASE = window.location.origin;
-const STORAGE_KEYS = {
-  provider: "orchestrai.provider",
-  groqKey: "orchestrai.groq_api_key",
-  openaiKey: "orchestrai.openai_api_key",
-  groqModel: "orchestrai.groq_model",
-  openaiModel: "orchestrai.openai_model",
+
+const PROVIDERS = {
+  groq: {
+    label: "Groq",
+    keyField: "groq_api_key",
+    keyInputId: "groq-key",
+    modelSelectId: "groq-model",
+    settingsId: "groq-settings",
+    storageKey: "orchestrai.groq_api_key",
+    storageModel: "orchestrai.groq_model",
+  },
+  openai: {
+    label: "OpenAI",
+    keyField: "openai_api_key",
+    keyInputId: "openai-key",
+    modelSelectId: "openai-model",
+    settingsId: "openai-settings",
+    storageKey: "orchestrai.openai_api_key",
+    storageModel: "orchestrai.openai_model",
+  },
+  claude: {
+    label: "Claude",
+    keyField: "anthropic_api_key",
+    keyInputId: "claude-key",
+    modelSelectId: "claude-model",
+    settingsId: "claude-settings",
+    storageKey: "orchestrai.anthropic_api_key",
+    storageModel: "orchestrai.claude_model",
+  },
+  mistral: {
+    label: "Mistral",
+    keyField: "mistral_api_key",
+    keyInputId: "mistral-key",
+    modelSelectId: "mistral-model",
+    settingsId: "mistral-settings",
+    storageKey: "orchestrai.mistral_api_key",
+    storageModel: "orchestrai.mistral_model",
+  },
 };
 
+const STORAGE_PROVIDER = "orchestrai.provider";
+
 const providerCards = document.querySelectorAll(".provider-card");
-const groqSettings = document.getElementById("groq-settings");
-const openaiSettings = document.getElementById("openai-settings");
 const statusProvider = document.getElementById("status-provider");
 const statusBackend = document.getElementById("status-backend");
 const statusBrowser = document.getElementById("status-browser");
@@ -22,10 +54,6 @@ const previewImage = document.getElementById("preview-image");
 const previewFrame = document.getElementById("preview-frame");
 const previewStep = document.getElementById("preview-step");
 const previewUrl = document.getElementById("preview-url");
-const groqKeyInput = document.getElementById("groq-key");
-const openaiKeyInput = document.getElementById("openai-key");
-const groqModelSelect = document.getElementById("groq-model");
-const openaiModelSelect = document.getElementById("openai-model");
 
 let currentRunId = null;
 let isRunning = false;
@@ -34,7 +62,15 @@ function getSelectedProvider() {
   return document.querySelector('input[name="provider"]:checked').value;
 }
 
+function getEl(id) {
+  return document.getElementById(id);
+}
+
 function setProvider(provider) {
+  if (!PROVIDERS[provider]) {
+    provider = "groq";
+  }
+
   providerCards.forEach((card) => {
     card.classList.toggle("selected", card.dataset.provider === provider);
   });
@@ -44,11 +80,12 @@ function setProvider(provider) {
     input.checked = true;
   }
 
-  const isGroq = provider === "groq";
-  groqSettings.classList.toggle("hidden", !isGroq);
-  openaiSettings.classList.toggle("hidden", isGroq);
-  statusProvider.textContent = isGroq ? "Groq (BYOK)" : "OpenAI (BYOK)";
-  localStorage.setItem(STORAGE_KEYS.provider, provider);
+  Object.entries(PROVIDERS).forEach(([name, config]) => {
+    getEl(config.settingsId).classList.toggle("hidden", name !== provider);
+  });
+
+  statusProvider.textContent = `${PROVIDERS[provider].label} (BYOK)`;
+  localStorage.setItem(STORAGE_PROVIDER, provider);
 }
 
 function setStatusPill(el, text, variant) {
@@ -187,30 +224,23 @@ function parseSseChunk(buffer) {
 }
 
 function persistKeys() {
-  localStorage.setItem(STORAGE_KEYS.groqKey, groqKeyInput.value.trim());
-  localStorage.setItem(STORAGE_KEYS.openaiKey, openaiKeyInput.value.trim());
-  localStorage.setItem(STORAGE_KEYS.groqModel, groqModelSelect.value);
-  localStorage.setItem(STORAGE_KEYS.openaiModel, openaiModelSelect.value);
+  Object.values(PROVIDERS).forEach((config) => {
+    localStorage.setItem(config.storageKey, getEl(config.keyInputId).value.trim());
+    localStorage.setItem(config.storageModel, getEl(config.modelSelectId).value);
+  });
 }
 
 function loadPersistedSettings() {
-  const savedProvider = localStorage.getItem(STORAGE_KEYS.provider) || "groq";
-  const savedGroqKey = localStorage.getItem(STORAGE_KEYS.groqKey) || "";
-  const savedOpenaiKey = localStorage.getItem(STORAGE_KEYS.openaiKey) || "";
-  const savedGroqModel = localStorage.getItem(STORAGE_KEYS.groqModel);
-  const savedOpenaiModel = localStorage.getItem(STORAGE_KEYS.openaiModel);
+  Object.values(PROVIDERS).forEach((config) => {
+    const key = localStorage.getItem(config.storageKey) || "";
+    const model = localStorage.getItem(config.storageModel);
+    getEl(config.keyInputId).value = key;
+    if (model) {
+      getEl(config.modelSelectId).value = model;
+    }
+  });
 
-  groqKeyInput.value = savedGroqKey;
-  openaiKeyInput.value = savedOpenaiKey;
-
-  if (savedGroqModel) {
-    groqModelSelect.value = savedGroqModel;
-  }
-  if (savedOpenaiModel) {
-    openaiModelSelect.value = savedOpenaiModel;
-  }
-
-  setProvider(savedProvider);
+  setProvider(localStorage.getItem(STORAGE_PROVIDER) || "groq");
 }
 
 async function handleEvent(event, data) {
@@ -250,21 +280,16 @@ async function handleEvent(event, data) {
 async function runTask() {
   const task = taskInput.value.trim();
   const provider = getSelectedProvider();
-  const groqKey = groqKeyInput.value.trim();
-  const openaiKey = openaiKeyInput.value.trim();
+  const config = PROVIDERS[provider];
+  const apiKey = getEl(config.keyInputId).value.trim();
 
   if (!task) {
     appendLog("Enter a task before running.");
     return;
   }
 
-  if (provider === "groq" && !groqKey) {
-    appendLog("Enter your Groq API key (BYOK).");
-    return;
-  }
-
-  if (provider === "openai" && !openaiKey) {
-    appendLog("Enter your OpenAI API key (BYOK).");
+  if (!apiKey) {
+    appendLog(`Enter your ${config.label} API key (BYOK).`);
     return;
   }
 
@@ -273,15 +298,18 @@ async function runTask() {
   const payload = {
     task,
     provider,
-    model: provider === "groq" ? groqModelSelect.value : openaiModelSelect.value,
-    groq_api_key: provider === "groq" ? groqKey : null,
-    openai_api_key: provider === "openai" ? openaiKey : null,
+    model: getEl(config.modelSelectId).value,
+    groq_api_key: null,
+    openai_api_key: null,
+    anthropic_api_key: null,
+    mistral_api_key: null,
     headless: document.getElementById("headless").checked,
   };
+  payload[config.keyField] = apiKey;
 
   resetPreview();
   setRunning(true);
-  appendLog(`Running with ${provider === "groq" ? "Groq" : "OpenAI"} (BYOK)...`);
+  appendLog(`Running with ${config.label} (BYOK)...`);
 
   try {
     const response = await fetch(`${API_BASE}/api/run`, {
@@ -374,10 +402,10 @@ providerCards.forEach((card) => {
   });
 });
 
-groqKeyInput.addEventListener("change", persistKeys);
-openaiKeyInput.addEventListener("change", persistKeys);
-groqModelSelect.addEventListener("change", persistKeys);
-openaiModelSelect.addEventListener("change", persistKeys);
+Object.values(PROVIDERS).forEach((config) => {
+  getEl(config.keyInputId).addEventListener("change", persistKeys);
+  getEl(config.modelSelectId).addEventListener("change", persistKeys);
+});
 
 runBtn.addEventListener("click", runTask);
 stopBtn.addEventListener("click", stopTask);
