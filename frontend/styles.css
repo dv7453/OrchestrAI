@@ -112,7 +112,32 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
+}
+
+.hosting-notice {
+  margin: 0 0 24px;
+  padding: 14px 16px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: var(--radius-sm);
+  background: rgba(251, 191, 36, 0.08);
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.hosting-notice strong {
+  color: var(--warn);
+}
+
+.hosting-notice a {
+  color: var(--accent-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.hosting-notice a:hover {
+  color: #fff;
 }
 
 .header-brand {

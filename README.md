@@ -17,10 +17,10 @@
   <img src="https://img.shields.io/badge/browser--use-Actuator-FF6B35?style=flat-square" alt="browser-use" />
   <img src="https://img.shields.io/badge/Tests-36_passing-22c55e?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/BYOK-Groq_|_OpenAI_|_Claude_|_Mistral-f59e0b?style=flat-square" alt="BYOK" />
+  <img src="https://img.shields.io/badge/Self--host-Local_first-46E3B7?style=flat-square" alt="Self-host" />
 </p>
 
 <p align="center">
-  <a href="#-hosted-demo-status">Demo status</a> ·
   <a href="#-why-orchestrai">Why</a> ·
   <a href="#-architecture">Architecture</a> ·
   <a href="#-langgraph-agent-graph">Graph</a> ·
@@ -47,13 +47,9 @@
 
 ---
 
-## Hosted demo status
+## Run it yourself
 
-The hosted demo is **no longer active** due to free-tier hosting limits (browser automation needs more RAM/CPU than free plans provide).
-
-You can still **clone this repo and run the full stack locally** — see [Usage](#-usage) below.
-
-Sorry for the inconvenience.
+Clone the repo and run locally — that’s the supported way to use OrchestrAI.
 
 <p align="center">
   <img src="frontend/logos/groq-icon.png" alt="Groq" height="36" />
@@ -66,7 +62,7 @@ Sorry for the inconvenience.
 </p>
 
 <p align="center">
-  <sub>Supported providers — Groq · OpenAI · Claude (Anthropic) · Mistral</sub>
+  <sub>Supported providers — Groq · OpenAI · Claude (Anthropic) · Mistral (full BYOK)</sub>
 </p>
 
 ---
