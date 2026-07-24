@@ -565,20 +565,13 @@ If this helps your stack, a **star** on the repo goes a long way.
 
 ---
 
-## Version History
+## Acknowledgments
 
-### V3 (Current)
+OrchestrAI builds on the foundational work of the [LangGraph Browser Agent](https://github.com/luckystarufo/langgraph_browser_use) project, which pioneered the approach of wrapping browser-use in a LangGraph state machine. V3 extends this foundation with planning, reflection, episodic memory, and event-sourced execution tracing.
 
-Architectural upgrade to an intelligent agent platform:
-- **Plan → Execute → Reflect**: Tasks decomposed into sub-goals with success criteria; reflector evaluates outcomes and triggers re-planning
-- **Episodic Memory**: Learns from past runs; retrieves similar successful strategies as planning context
-- **Event-Sourced Log**: Every execution event stored in SQLite for replay, debugging, and auditing
-- **Bug Fix**: `step_timed_out` death spiral eliminated
-- **18 nodes**, **7 routers**, **7 state fields**, **74 tests**, **8 API endpoints**
+Thanks also to the [browser-use](https://github.com/browser-use/browser-use) and [LangGraph](https://github.com/langchain-ai/langgraph) teams for the excellent libraries this project depends on.
 
-### V2
-
-LangGraph state machine wrapping browser-use with a FastAPI + SSE control plane and showcase Web UI. 15 nodes, 5 routers, 36 tests.
+Licensed under MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
@@ -586,3 +579,4 @@ LangGraph state machine wrapping browser-use with a FastAPI + SSE control plane 
   <sub>Built with LangGraph · browser-use · FastAPI · Playwright</sub><br/>
   <a href="https://github.com/dv7453/OrchestrAI">github.com/dv7453/OrchestrAI</a>
 </p>
+
