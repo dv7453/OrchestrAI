@@ -84,7 +84,7 @@ function setProvider(provider) {
     getEl(config.settingsId).classList.toggle("hidden", name !== provider);
   });
 
-  statusProvider.textContent = `${PROVIDERS[provider].label} (BYOK)`;
+  statusProvider.textContent = PROVIDERS[provider].label;
   localStorage.setItem(STORAGE_PROVIDER, provider);
 }
 
@@ -289,7 +289,7 @@ async function runTask() {
   }
 
   if (!apiKey) {
-    appendLog(`Enter your ${config.label} API key (BYOK).`);
+    appendLog(`Enter your ${config.label} API key.`);
     return;
   }
 
@@ -309,7 +309,7 @@ async function runTask() {
 
   resetPreview();
   setRunning(true);
-  appendLog(`Running with ${config.label} (BYOK)...`);
+  appendLog(`Running with ${config.label}...`);
 
   try {
     const response = await fetch(`${API_BASE}/api/run`, {
@@ -384,7 +384,7 @@ async function checkBackend() {
     setStatusPill(statusBackend, "Connected", "connected");
 
     if (!isRunning) {
-      setBadge("BYOK Ready", "ready");
+      setBadge("Active", "ready");
     }
   } catch {
     setStatusPill(statusBackend, "Offline", "offline");

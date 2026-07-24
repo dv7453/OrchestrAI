@@ -63,7 +63,7 @@ def _build_llm(request: RunRequest):
 
     api_key = _provider_api_key(request)
     if not api_key:
-        raise ValueError(f"{request.provider} API key is required (BYOK).")
+        raise ValueError(f"{request.provider} API key is required.")
 
     if request.provider == "openai":
         return ChatOpenAI(model=request.model or "gpt-4o", api_key=api_key)
@@ -216,7 +216,7 @@ async def run_task(request: RunRequest):
         }[request.provider]
         raise HTTPException(
             status_code=400,
-            detail=f"{label} API key is required (BYOK).",
+            detail=f"{label} API key is required.",
         )
 
     run_id = os.urandom(8).hex()
