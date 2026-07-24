@@ -4,12 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orchestrai"
-version = "0.2.0"
-description = "OrchestrAI — AI browser automation with LangGraph and live preview."
+version = "3.0.0"
+description = "OrchestrAI — AI browser automation with LangGraph, planning, reflection, and episodic memory."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "langgraph>=0.2.0",
+  "pydantic>=2.0.0",
+  "numpy>=1.24.0",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +26,13 @@ server = [
   "uvicorn>=0.32.0",
   "python-dotenv>=1.0.0",
 ]
+memory = [
+  "sentence-transformers>=2.2.0",
+]
+dev = [
+  "pytest>=7.0.0",
+  "pytest-asyncio>=0.21.0",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -31,5 +40,6 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["langgraph_browser_agent*"]
+
 
 

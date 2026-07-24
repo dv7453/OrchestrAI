@@ -825,6 +825,101 @@ body.is-running .preview-scanline {
 
 /* ── Env note ── */
 
+/* ── Sub-goals panel (V3) ── */
+.subgoals-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
+.subgoals-empty {
+  color: var(--text-faint);
+  font-size: 0.82rem;
+}
+
+.subgoal-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 0.82rem;
+  animation: log-in 0.4s var(--ease-out);
+}
+
+.subgoal-item:last-child {
+  border-bottom: none;
+}
+
+.subgoal-status {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 11px;
+  margin-top: 1px;
+  transition: all 0.3s var(--ease-out);
+}
+
+.subgoal-status.pending {
+  border: 1.5px solid var(--text-faint);
+  color: transparent;
+}
+
+.subgoal-status.active {
+  border: 1.5px solid var(--cyan);
+  color: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan-glow);
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+.subgoal-status.completed {
+  border: 1.5px solid var(--success);
+  background: rgba(110, 231, 160, 0.15);
+  color: var(--success);
+}
+
+.subgoal-status.failed {
+  border: 1.5px solid var(--danger);
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--danger);
+}
+
+.subgoal-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.subgoal-desc {
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.subgoal-item.completed .subgoal-desc {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.15);
+}
+
+.subgoal-criteria {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  margin-top: 2px;
+  font-style: italic;
+}
+
+.subgoal-index {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  min-width: 16px;
+}
+
 .hidden {
   display: none !important;
 }

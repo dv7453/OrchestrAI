@@ -1,3 +1,11 @@
+"""FastAPI control plane — BYOK, SSE streaming, event store & memory endpoints.
+
+V3 additions:
+- Global EventStore and EpisodicMemory instances (SQLite, stored in data/)
+- SSE events: plan, reflection, memory_context
+- Endpoints: GET /api/runs, GET /api/runs/{id}/events, GET /api/memory
+"""
+
 import asyncio
 import json
 import os
@@ -12,10 +20,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .agent import LangGraphBrowserAgent
+from .event_store import EventStore
+from .memory import EpisodicMemory
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+DATA_DIR.mkdir(exist_ok=True)
 
 app = FastAPI(title="OrchestrAI")
 app.add_middleware(
@@ -26,6 +38,10 @@ app.add_middleware(
 )
 
 _running_tasks: dict[str, dict[str, Any]] = {}
+
+# V3: Global stores (SQLite backed, persist across restarts)
+_event_store = EventStore(db_path=DATA_DIR / "orchestrai_events.db")
+_memory = EpisodicMemory(db_path=DATA_DIR / "orchestrai_memory.db")
 
 
 class RunRequest(BaseModel):
@@ -145,7 +161,43 @@ async def _run_agent(request: RunRequest, run_id: str, queue: asyncio.Queue):
                 await queue.put(_sse("log", {"message": f"Step {step_number}: {goal}"}))
 
         browser_agent.register_new_step_callback = on_step
-        langgraph_agent = LangGraphBrowserAgent(browser_agent)
+
+        # V3: Create agent with event store and memory
+        langgraph_agent = LangGraphBrowserAgent(
+            browser_agent,
+            event_store=_event_store,
+            memory=_memory,
+        )
+
+        # V3: Emit memory context info
+        if _memory:
+            try:
+                similar = _memory.retrieve_similar(request.task, top_k=3)
+                if similar:
+                    await queue.put(
+                        _sse(
+                            "memory_context",
+                            {
+                                "count": len(similar),
+                                "episodes": [
+                                    {
+                                        "task": ep["task_text"],
+                                        "success": ep.get("success", False),
+                                        "similarity": ep.get("similarity_score", 0),
+                                    }
+                                    for ep in similar
+                                ],
+                            },
+                        )
+                    )
+                    await queue.put(
+                        _sse(
+                            "log",
+                            {"message": f"📚 Found {len(similar)} similar past task(s) for planning context"},
+                        )
+                    )
+            except Exception:
+                pass  # Memory retrieval is best-effort
 
         history = await langgraph_agent.run(
             max_steps=request.max_steps,
@@ -161,6 +213,8 @@ async def _run_agent(request: RunRequest, run_id: str, queue: asyncio.Queue):
                 {
                     "success": success,
                     "result": final_text,
+                    "run_id": run_id,
+                    "steps": langgraph_agent.current_step,
                 },
             )
         )
@@ -179,10 +233,12 @@ async def _run_agent(request: RunRequest, run_id: str, queue: asyncio.Queue):
 async def health():
     return {
         "status": "ok",
+        "version": "3.0.0",
         "byok": True,
         "providers": list(SUPPORTED_PROVIDERS),
         "default_provider": "groq",
         "default_model": "openai/gpt-oss-20b",
+        "features": ["planning", "reflection", "episodic_memory", "event_log"],
     }
 
 
@@ -246,6 +302,47 @@ async def run_task(request: RunRequest):
         },
     )
 
+
+# ---------------------------------------------------------------------------
+# V3: Event log endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/runs")
+async def list_runs(limit: int = 50):
+    """List recent runs from the event store."""
+    return {"runs": _event_store.list_runs(limit=limit)}
+
+
+@app.get("/api/runs/{run_id}/events")
+async def get_run_events(run_id: str):
+    """Get the full event timeline for a specific run."""
+    events = _event_store.get_run_events(run_id)
+    if not events:
+        raise HTTPException(status_code=404, detail="Run not found.")
+    summary = _event_store.get_run_summary(run_id)
+    return {"run_id": run_id, "summary": summary, "events": events}
+
+
+# ---------------------------------------------------------------------------
+# V3: Memory endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/memory")
+async def list_memory(limit: int = 50):
+    """List stored episodes from episodic memory."""
+    return {"episodes": _memory.list_episodes(limit=limit)}
+
+
+@app.get("/api/memory/search")
+async def search_memory(query: str, top_k: int = 5):
+    """Search episodic memory for similar past tasks."""
+    results = _memory.retrieve_similar(query, top_k=top_k)
+    return {"query": query, "results": results}
+
+
+# ---------------------------------------------------------------------------
+# Frontend serving
+# ---------------------------------------------------------------------------
 
 @app.get("/")
 async def index():

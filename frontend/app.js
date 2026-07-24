@@ -55,8 +55,13 @@ const previewFrame = document.getElementById("preview-frame");
 const previewStep = document.getElementById("preview-step");
 const previewUrl = document.getElementById("preview-url");
 
+// V3: sub-goals panel
+const subgoalsSection = document.getElementById("subgoals-section");
+const subgoalsList = document.getElementById("subgoals-list");
+
 let currentRunId = null;
 let isRunning = false;
+let currentSubGoals = []; // V3: track sub-goals state
 
 function getSelectedProvider() {
   return document.querySelector('input[name="provider"]:checked').value;
@@ -173,6 +178,51 @@ function resetPreview() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// V3: Sub-goals rendering
+// ---------------------------------------------------------------------------
+
+function resetSubGoals() {
+  currentSubGoals = [];
+  subgoalsSection.style.display = "none";
+  subgoalsList.innerHTML =
+    '<div class="subgoals-empty">No plan yet. The agent will decompose your task into sub-goals.</div>';
+}
+
+function renderSubGoals(subGoals) {
+  currentSubGoals = subGoals;
+  subgoalsSection.style.display = "";
+
+  subgoalsList.innerHTML = "";
+  subGoals.forEach((sg, i) => {
+    const item = document.createElement("div");
+    item.className = `subgoal-item ${sg.status || "pending"}`;
+    item.dataset.index = i;
+
+    const statusIcon = { pending: "", active: "●", completed: "✓", failed: "✗" };
+    const icon = statusIcon[sg.status] || "";
+
+    item.innerHTML = `
+      <span class="subgoal-status ${sg.status || "pending"}">${icon}</span>
+      <div class="subgoal-content">
+        <div class="subgoal-desc">${sg.description}</div>
+        <div class="subgoal-criteria">${sg.success_criteria}</div>
+      </div>
+    `;
+    subgoalsList.appendChild(item);
+  });
+}
+
+function updateSubGoalStatus(index, status) {
+  if (index < 0 || index >= currentSubGoals.length) return;
+  currentSubGoals[index].status = status;
+  renderSubGoals(currentSubGoals);
+}
+
+// ---------------------------------------------------------------------------
+// Error handling
+// ---------------------------------------------------------------------------
+
 function formatApiError(errorBody) {
   if (!errorBody) {
     return "Request failed.";
@@ -243,6 +293,10 @@ function loadPersistedSettings() {
   setProvider(localStorage.getItem(STORAGE_PROVIDER) || "groq");
 }
 
+// ---------------------------------------------------------------------------
+// SSE event handler (V3: plan, reflection, memory_context)
+// ---------------------------------------------------------------------------
+
 async function handleEvent(event, data) {
   if (event === "started") {
     currentRunId = data.run_id;
@@ -263,6 +317,36 @@ async function handleEvent(event, data) {
     return;
   }
 
+  // V3: Plan event — render sub-goals checklist
+  if (event === "plan") {
+    if (data.sub_goals && data.sub_goals.length > 0) {
+      renderSubGoals(data.sub_goals);
+      appendLog(`📋 Plan created with ${data.sub_goals.length} sub-goal(s)`);
+    }
+    return;
+  }
+
+  // V3: Reflection event — update sub-goal status
+  if (event === "reflection") {
+    if (data.sub_goal_met && typeof data.sub_goal_index === "number") {
+      updateSubGoalStatus(data.sub_goal_index, "completed");
+      appendLog(`✅ Sub-goal ${data.sub_goal_index + 1} completed`);
+      // Activate next sub-goal
+      if (data.sub_goal_index + 1 < currentSubGoals.length) {
+        updateSubGoalStatus(data.sub_goal_index + 1, "active");
+      }
+    }
+    return;
+  }
+
+  // V3: Memory context event
+  if (event === "memory_context") {
+    if (data.count > 0) {
+      appendLog(`📚 Found ${data.count} similar past task(s) for planning context`);
+    }
+    return;
+  }
+
   if (event === "error") {
     appendLog(`Error: ${data.message}`);
     return;
@@ -273,6 +357,16 @@ async function handleEvent(event, data) {
     setRunning(false);
     currentRunId = null;
     previewStep.textContent = data.success ? "Completed" : "Finished";
+
+    // V3: Mark remaining active sub-goals as completed or failed
+    if (currentSubGoals.length > 0) {
+      currentSubGoals.forEach((sg, i) => {
+        if (sg.status === "active") {
+          updateSubGoalStatus(i, data.success ? "completed" : "failed");
+        }
+      });
+    }
+
     checkBackend();
   }
 }
@@ -308,6 +402,7 @@ async function runTask() {
   payload[config.keyField] = apiKey;
 
   resetPreview();
+  resetSubGoals(); // V3: reset sub-goals panel
   setRunning(true);
   appendLog(`Running with ${config.label}...`);
 

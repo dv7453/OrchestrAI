@@ -1,4 +1,4 @@
-"""Tests for node implementations."""
+"""Tests for node implementations (V3: includes planner, reflector, bug fix)."""
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 import time
@@ -24,173 +24,167 @@ from langgraph_browser_agent.nodes import (
 )
 
 
+def _make_state(**overrides) -> BrowserAgentState:
+    base: BrowserAgentState = {
+        "task": "test",
+        "browser_state_summary": None,
+        "last_model_output": None,
+        "last_result": None,
+        "sub_goals": None,
+        "current_sub_goal_index": 0,
+        "plan_context": None,
+    }
+    base.update(overrides)
+    return base
+
+
 class TestCheckNodes:
-    """Test check nodes."""
-    
+    """Test check nodes (no-ops)."""
+
     def test_check_paused_node(self):
-        """Test check_paused_node."""
-        # Mock agent instance
-        mock_agent_instance = Mock()
-        
-        state: BrowserAgentState = {
-            'task': 'test',
-            'browser_state_summary': None,
-            'last_model_output': None,
-            'last_result': None
-        }
-        
-        result = check_paused_node(state, mock_agent_instance)
-        
-        # Verify state was returned unchanged
+        state = _make_state()
+        result = check_paused_node(state, Mock())
         assert result == state
-    
+
     def test_check_consecutive_failures_node(self):
-        """Test check_consecutive_failures_node."""
-        # Mock agent instance
-        mock_agent_instance = Mock()
-        
-        state: BrowserAgentState = {
-            'task': 'test',
-            'browser_state_summary': None,
-            'last_model_output': None,
-            'last_result': None
-        }
-        
-        result = check_consecutive_failures_node(state, mock_agent_instance)
-        
-        # Verify state was returned unchanged
+        state = _make_state()
+        result = check_consecutive_failures_node(state, Mock())
         assert result == state
-    
+
     def test_check_stopped_node(self):
-        """Test check_stopped_node."""
-        # Mock agent instance
-        mock_agent_instance = Mock()
-        
-        state: BrowserAgentState = {
-            'task': 'test',
-            'browser_state_summary': None,
-            'last_model_output': None,
-            'last_result': None
-        }
-        
-        result = check_stopped_node(state, mock_agent_instance)
-        
-        # Verify state was returned unchanged
+        state = _make_state()
+        result = check_stopped_node(state, Mock())
         assert result == state
 
 
 class TestActionNodes:
     """Test action nodes."""
-    
+
     @pytest.mark.asyncio
     async def test_paused_state_actions_node(self):
-        """Test paused_state_actions_node."""
-        # Mock agent instance
-        mock_agent_instance = Mock()
-        mock_agent_instance.current_step = 0
-        mock_agent_instance.original_agent.logger = Mock()
-        mock_agent_instance.original_agent._external_pause_event = AsyncMock()
-        mock_agent_instance.signal_handler = Mock()
-        mock_agent_instance.signal_handler.reset = Mock()
-        
-        state: BrowserAgentState = {
-            'task': 'test',
-            'browser_state_summary': None,
-            'last_model_output': None,
-            'last_result': None
-        }
-        
-        result = await paused_state_actions_node(state, mock_agent_instance)
-        
-        # Verify pause event was waited for
-        mock_agent_instance.original_agent._external_pause_event.wait.assert_called_once()
-        # Verify signal handler was reset
-        mock_agent_instance.signal_handler.reset.assert_called_once()
-    
+        mock_agent = Mock()
+        mock_agent.current_step = 0
+        mock_agent.original_agent.logger = Mock()
+        mock_agent.original_agent._external_pause_event = AsyncMock()
+        mock_agent.signal_handler = Mock()
+        mock_agent.signal_handler.reset = Mock()
+        mock_agent.event_store = None
+
+        state = _make_state()
+        await paused_state_actions_node(state, mock_agent)
+
+        mock_agent.original_agent._external_pause_event.wait.assert_called_once()
+        mock_agent.signal_handler.reset.assert_called_once()
+
     def test_consecutive_failure_actions_node(self):
-        """Test consecutive_failure_actions_node."""
-        # Mock agent instance
-        mock_agent_instance = Mock()
-        mock_agent_instance.original_agent.logger = Mock()
-        mock_agent_instance.original_agent.settings.max_failures = 3
-        
-        state: BrowserAgentState = {
-            'task': 'test',
-            'browser_state_summary': None,
-            'last_model_output': None,
-            'last_result': None
-        }
-        
-        result = consecutive_failure_actions_node(state, mock_agent_instance)
-        
-        # Verify ended_due_to_break is set on agent
-        assert mock_agent_instance.ended_due_to_break is True
-    
+        mock_agent = Mock()
+        mock_agent.original_agent.logger = Mock()
+        mock_agent.original_agent.settings.max_failures = 3
+        mock_agent.event_store = None
+
+        state = _make_state()
+        consecutive_failure_actions_node(state, mock_agent)
+        assert mock_agent.ended_due_to_break is True
+
     def test_stopped_state_actions_node(self):
-        """Test stopped_state_actions_node."""
-        # Mock agent instance
-        mock_agent_instance = Mock()
-        mock_agent_instance.original_agent.logger = Mock()
-        
-        state: BrowserAgentState = {
-            'task': 'test',
-            'browser_state_summary': None,
-            'last_model_output': None,
-            'last_result': None
-        }
-        
-        result = stopped_state_actions_node(state, mock_agent_instance)
-        
-        # Verify ended_due_to_break is set on agent
-        assert mock_agent_instance.ended_due_to_break is True
+        mock_agent = Mock()
+        mock_agent.original_agent.logger = Mock()
+        mock_agent.event_store = None
+
+        state = _make_state()
+        stopped_state_actions_node(state, mock_agent)
+        assert mock_agent.ended_due_to_break is True
 
 
 class TestStepTimeout:
     """Test step timeout functionality."""
-    
+
     def test_check_step_timeout_no_timeout(self):
-        """Test check_step_timeout when no timeout occurs."""
-        # Mock agent
         mock_agent = Mock()
         mock_agent.current_step = 0
         mock_agent.step_timed_out = False
-        mock_agent.original_agent.step_start_time = time.time() - 10  # 10 seconds ago
-        mock_agent.original_agent.settings.step_timeout = 30  # 30 second timeout
-        
-        state: BrowserAgentState = {
-            'task': 'test',
-            'browser_state_summary': None,
-            'last_model_output': None,
-            'last_result': None
-        }
-        
+        mock_agent.original_agent.step_start_time = time.time() - 10
+        mock_agent.original_agent.settings.step_timeout = 30
+        mock_agent.event_store = None
+
+        state = _make_state()
         result = check_step_timeout(state, mock_agent)
-        
-        # Should not timeout
+
         assert result is False
         assert mock_agent.step_timed_out is False
-    
+
     def test_check_step_timeout_with_timeout(self):
-        """Test check_step_timeout when timeout occurs."""
-        # Mock agent
         mock_agent = Mock()
         mock_agent.current_step = 0
         mock_agent.step_timed_out = False
-        mock_agent.original_agent.step_start_time = time.time() - 40  # 40 seconds ago
-        mock_agent.original_agent.settings.step_timeout = 30  # 30 second timeout
+        mock_agent.original_agent.step_start_time = time.time() - 40
+        mock_agent.original_agent.settings.step_timeout = 30
         mock_agent.original_agent.logger = Mock()
         mock_agent.original_agent.state.consecutive_failures = 0
-        
-        state: BrowserAgentState = {
-            'task': 'test',
-            'browser_state_summary': None,
-            'last_model_output': None,
-            'last_result': None
-        }
-        
+        mock_agent.event_store = None
+        mock_agent.run_id = "test"
+
+        state = _make_state()
         result = check_step_timeout(state, mock_agent)
-        
-        # Should timeout
+
         assert result is True
         assert mock_agent.step_timed_out is True
         assert mock_agent.original_agent.state.consecutive_failures == 1
+
+
+class TestStepTimedOutReset:
+    """V3: Test that step_timed_out is reset at the start of each step."""
+
+    @pytest.mark.asyncio
+    async def test_on_step_start_resets_timed_out(self):
+        """Critical bug fix: step_timed_out must be cleared each step."""
+        mock_agent = Mock()
+        mock_agent.step_timed_out = True  # Simulating stale timeout from previous step
+        mock_agent.last_error = "stale error"
+        mock_agent.on_step_start = None
+        mock_agent.event_store = None
+
+        state = _make_state()
+        await on_step_start_node(state, mock_agent)
+
+        assert mock_agent.step_timed_out is False
+        assert mock_agent.last_error is None
+
+    @pytest.mark.asyncio
+    async def test_on_step_start_calls_hook(self):
+        """Verify on_step_start hook is still called after reset."""
+        mock_agent = Mock()
+        mock_agent.step_timed_out = False
+        mock_agent.last_error = None
+        mock_agent.on_step_start = AsyncMock()
+        mock_agent.event_store = None
+
+        state = _make_state()
+        await on_step_start_node(state, mock_agent)
+
+        mock_agent.on_step_start.assert_called_once_with(mock_agent.original_agent)
+
+
+class TestOnStepEnd:
+    """Test on_step_end_node."""
+
+    @pytest.mark.asyncio
+    async def test_on_step_end_with_hook(self):
+        mock_agent = Mock()
+        mock_agent.on_step_end = AsyncMock()
+        mock_agent.event_store = None
+
+        state = _make_state()
+        await on_step_end_node(state, mock_agent)
+
+        mock_agent.on_step_end.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_on_step_end_without_hook(self):
+        mock_agent = Mock()
+        mock_agent.on_step_end = None
+        mock_agent.event_store = None
+
+        state = _make_state()
+        result = await on_step_end_node(state, mock_agent)
+        assert result == state

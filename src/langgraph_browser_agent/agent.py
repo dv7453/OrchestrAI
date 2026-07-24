@@ -1,8 +1,25 @@
+"""LangGraph browser agent wrapper.
+
+Wraps a fully-constructed browser-use Agent and drives it through the
+LangGraph state machine instead of browser-use's internal step loop.
+
+V3 additions:
+- EventStore integration for full execution tracing
+- EpisodicMemory integration for learning from past runs
+- Planning/reflection state attributes
+"""
+
+import os
 import time
 import asyncio
 from pathlib import Path
 
-from browser_use.agent.views import ActionResult, AgentHistoryList, AgentHistory, BrowserStateHistory
+from browser_use.agent.views import (
+    ActionResult,
+    AgentHistoryList,
+    AgentHistory,
+    BrowserStateHistory,
+)
 
 from .state import BrowserAgentState
 from .graph import create_browser_agent_graph
@@ -11,7 +28,7 @@ from .graph import create_browser_agent_graph
 class LangGraphBrowserAgent:
     """LangGraph browser agent wrapper."""
 
-    def __init__(self, original_agent):
+    def __init__(self, original_agent, event_store=None, memory=None):
         self.original_agent = original_agent
         self.browser_session = original_agent.browser_session
         self.tools = original_agent.tools
@@ -30,6 +47,17 @@ class LangGraphBrowserAgent:
 
         self.signal_handler = None
 
+        # V3: Planning / Reflection attributes
+        self.planning_done = False
+        self.needs_replan = False
+        self.replan_count = 0
+        self.reflection_result = None
+
+        # V3: Event store & episodic memory
+        self.event_store = event_store
+        self.memory = memory
+        self.run_id = os.urandom(8).hex()
+
         self.graph = create_browser_agent_graph(self)
 
     async def run(
@@ -41,7 +69,9 @@ class LangGraphBrowserAgent:
     ) -> AgentHistoryList:
 
         self.original_agent.settings.step_timeout = step_timeout
-    
+        self.run_id = os.urandom(8).hex()
+        run_start_time = time.time()
+
         loop = asyncio.get_event_loop()
         agent_run_error: str | None = None
         self.original_agent._force_exit_telemetry_logged = False
@@ -63,6 +93,19 @@ class LangGraphBrowserAgent:
             exit_on_second_int=True,
         )
         self.signal_handler.register()
+
+        # V3: Emit run_started event
+        if self.event_store:
+            from .event_store import ExecutionEvent
+            self.event_store.emit(ExecutionEvent(
+                run_id=self.run_id,
+                event_type="run_started",
+                payload={
+                    "task": self.original_agent.task,
+                    "max_steps": max_steps,
+                    "step_timeout": step_timeout,
+                },
+            ))
 
         try:
             await self.original_agent._log_agent_run()
@@ -92,7 +135,7 @@ class LangGraphBrowserAgent:
             self.original_agent._log_first_step_startup()
             self.original_agent.logger.debug(f'🔄 Starting main execution loop with max {max_steps} steps...')
 
-            # Initialize agent attributes for this run
+            # Reset agent attributes for this run
             self.current_step = 0
             self.max_steps = max_steps
             self.step_info = None
@@ -100,11 +143,36 @@ class LangGraphBrowserAgent:
             self.ended_due_to_break = False
             self.step_timed_out = False
 
+            # V3: Reset planning/reflection state
+            self.planning_done = False
+            self.needs_replan = False
+            self.replan_count = 0
+            self.reflection_result = None
+
+            # V3: Retrieve episodic memory for planning context
+            plan_context = None
+            if self.memory:
+                try:
+                    similar_episodes = self.memory.retrieve_similar(
+                        self.original_agent.task, top_k=3
+                    )
+                    if similar_episodes:
+                        plan_context = self.memory.format_for_prompt(similar_episodes)
+                        self.original_agent.logger.info(
+                            f"📚 Retrieved {len(similar_episodes)} similar past task(s) for planning context"
+                        )
+                except Exception as e:
+                    self.original_agent.logger.error(f"Memory retrieval failed: {e}")
+
             initial_state: BrowserAgentState = {
                 'task': self.original_agent.task,
                 'browser_state_summary': None,
                 'last_model_output': None,
-                'last_result': None
+                'last_result': None,
+                # V3 planning fields
+                'sub_goals': None,
+                'current_sub_goal_index': 0,
+                'plan_context': plan_context,
             }
 
             # Create config for graph execution
@@ -138,6 +206,45 @@ class LangGraphBrowserAgent:
                 self.original_agent.history._output_model_schema = self.original_agent.output_model_schema
 
             self.original_agent.logger.debug('🏁 Agent.run() completed successfully')
+
+            # V3: Store episode in memory
+            run_duration = time.time() - run_start_time
+            success = bool(self.original_agent.history and self.original_agent.history.is_successful())
+
+            if self.memory:
+                try:
+                    from .memory import Episode
+                    sub_goals = final_state.get("sub_goals", []) if final_state else []
+                    self.memory.store_episode(Episode(
+                        task_text=self.original_agent.task,
+                        sub_goals=sub_goals,
+                        trajectory_summary=(
+                            self.original_agent.history.final_result() or ""
+                        ) if self.original_agent.history else "",
+                        success=success,
+                        steps_taken=self.current_step,
+                        duration_seconds=run_duration,
+                        failure_reason=agent_run_error,
+                    ))
+                    self.original_agent.logger.info("💾 Episode stored in memory")
+                except Exception as e:
+                    self.original_agent.logger.error(f"Memory storage failed: {e}")
+
+            # V3: Emit run_completed event
+            if self.event_store:
+                from .event_store import ExecutionEvent
+                self.event_store.emit(ExecutionEvent(
+                    run_id=self.run_id,
+                    event_type="run_completed",
+                    step_number=self.current_step,
+                    payload={
+                        "success": success,
+                        "steps_taken": self.current_step,
+                        "duration_seconds": round(run_duration, 2),
+                        "error": agent_run_error,
+                    },
+                ))
+
             return self.original_agent.history
 
         except KeyboardInterrupt:
@@ -149,6 +256,17 @@ class LangGraphBrowserAgent:
         except Exception as e:
             self.original_agent.logger.error(f'LangGraph agent run failed with exception: {e}', exc_info=True)
             agent_run_error = str(e)
+
+            # V3: Emit run_failed event
+            if self.event_store:
+                from .event_store import ExecutionEvent
+                self.event_store.emit(ExecutionEvent(
+                    run_id=self.run_id,
+                    event_type="run_failed",
+                    step_number=self.current_step,
+                    payload={"error": str(e)},
+                ))
+
             raise e
 
         finally:
@@ -188,5 +306,3 @@ class LangGraphBrowserAgent:
 
             await self.original_agent.eventbus.stop(timeout=3.0)
             await self.original_agent.close()
-
-

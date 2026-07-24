@@ -145,3 +145,9 @@ info.log
 
 # LangGraph API files
 .langgraph_api/
+
+# Frontend / runtime
+node_modules/
+frontend/node_modules/
+data/
+*.db

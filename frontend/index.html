@@ -32,7 +32,7 @@
           </div>
           <div>
             <h1>OrchestrAI</h1>
-            <p>AI browser automation with live preview</p>
+            <p>Intelligent browser agent with planning, reflection & memory</p>
           </div>
         </div>
         <span class="badge" id="connection-badge">
@@ -42,9 +42,16 @@
       </header>
 
       <div class="hosting-notice reveal" role="status">
-        <strong>Hosted demo is no longer active</strong> due to free-tier limitations (browser automation needs more RAM than free hosting allows).
-        Please download the repo and run it locally —
-        <a href="https://github.com/dv7453/OrchestrAI" target="_blank" rel="noopener noreferrer">github.com/dv7453/OrchestrAI</a>.
+        <strong>⚠️ Hosted demo retired — now local-first only.</strong>
+        OrchestrAI V3 added a <strong>SQLite persistence layer</strong> (episodic memory + event-sourced execution log),
+        a <strong>Plan → Execute → Reflect</strong> architecture with dual LLM calls per step, and
+        <strong>persistent storage</strong> that requires disk access — none of which fit on free-tier hosting platforms.
+        <br/><br/>
+        Clone the repo and run locally in under 2 minutes:
+        <a href="https://github.com/dv7453/OrchestrAI" target="_blank" rel="noopener noreferrer">github.com/dv7453/OrchestrAI</a>
+        <br/>
+        <code>git clone https://github.com/dv7453/OrchestrAI.git && cd OrchestrAI && pip install -e '.[browser,server]' && python -m langgraph_browser_agent.server</code>
+        <br/><br/>
         Sorry for the inconvenience.
       </div>
 
@@ -226,6 +233,16 @@
               <img id="preview-image" class="preview-image hidden" alt="Browser screenshot" />
             </div>
             <div id="preview-url" class="preview-url">No page loaded</div>
+          </div>
+
+          <div class="section" id="subgoals-section" style="display:none;">
+            <div class="section-label compact">
+              <span class="label-icon">📋</span>
+              <h2>Plan</h2>
+            </div>
+            <div id="subgoals-list" class="subgoals-list">
+              <div class="subgoals-empty">No plan yet. The agent will decompose your task into sub-goals.</div>
+            </div>
           </div>
 
           <div class="section">

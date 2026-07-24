@@ -1,42 +1,81 @@
-"""Tests for state management."""
+"""Tests for the BrowserAgentState schema (V3)."""
 import pytest
-from unittest.mock import Mock
 
 from langgraph_browser_agent.state import BrowserAgentState
 
 
 class TestBrowserAgentState:
-    """Test BrowserAgentState TypedDict."""
-    
-    def test_state_schema(self):
-        """Test that BrowserAgentState has all required fields."""
+    """Test BrowserAgentState TypedDict structure."""
+
+    def test_state_has_core_fields(self):
+        """Verify original core fields exist."""
         state: BrowserAgentState = {
-            'task': 'test task',
-            'browser_state_summary': None,
-            'last_model_output': None,
-            'last_result': None
+            "task": "test task",
+            "browser_state_summary": None,
+            "last_model_output": None,
+            "last_result": None,
+            "sub_goals": None,
+            "current_sub_goal_index": 0,
+            "plan_context": None,
         }
-        
-        assert state['task'] == 'test task'
-        assert state['browser_state_summary'] is None
-        assert state['last_model_output'] is None
-        assert state['last_result'] is None
-    
-    def test_state_with_optional_fields(self):
-        """Test that BrowserAgentState can have optional fields set."""
-        from browser_use.agent.views import AgentOutput, ActionResult
-        
-        # Mock AgentOutput and ActionResult
-        mock_output = Mock(spec=AgentOutput)
-        mock_result = [Mock(spec=ActionResult)]
-        
+
+        assert state["task"] == "test task"
+        assert state["browser_state_summary"] is None
+        assert state["last_model_output"] is None
+        assert state["last_result"] is None
+
+    def test_state_has_planning_fields(self):
+        """V3: Verify planning/reflection fields exist."""
         state: BrowserAgentState = {
-            'task': 'test task',
-            'browser_state_summary': None,
-            'last_model_output': mock_output,
-            'last_result': mock_result
+            "task": "test",
+            "browser_state_summary": None,
+            "last_model_output": None,
+            "last_result": None,
+            "sub_goals": [
+                {"description": "Navigate", "success_criteria": "Page loaded", "status": "active"}
+            ],
+            "current_sub_goal_index": 0,
+            "plan_context": "Similar past task found",
         }
-        
-        assert state['task'] == 'test task'
-        assert state['last_model_output'] == mock_output
-        assert state['last_result'] == mock_result
+
+        assert len(state["sub_goals"]) == 1
+        assert state["current_sub_goal_index"] == 0
+        assert state["plan_context"] == "Similar past task found"
+
+    def test_state_sub_goals_can_be_none(self):
+        """Sub-goals should be None before planning."""
+        state: BrowserAgentState = {
+            "task": "test",
+            "browser_state_summary": None,
+            "last_model_output": None,
+            "last_result": None,
+            "sub_goals": None,
+            "current_sub_goal_index": 0,
+            "plan_context": None,
+        }
+
+        assert state["sub_goals"] is None
+
+    def test_all_keys_present(self):
+        """Verify all expected keys are in the TypedDict."""
+        expected_keys = {
+            "task",
+            "browser_state_summary",
+            "last_model_output",
+            "last_result",
+            "sub_goals",
+            "current_sub_goal_index",
+            "plan_context",
+        }
+
+        state: BrowserAgentState = {
+            "task": "test",
+            "browser_state_summary": None,
+            "last_model_output": None,
+            "last_result": None,
+            "sub_goals": None,
+            "current_sub_goal_index": 0,
+            "plan_context": None,
+        }
+
+        assert set(state.keys()) == expected_keys
