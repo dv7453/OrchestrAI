@@ -290,7 +290,7 @@ body.is-running .live-icon {
 .field-help {
   margin: 0 0 12px;
   color: var(--text-muted);
-  font-size: 0.82rem;
+  font-size: 0.95rem;
 }
 
 .hint code {
