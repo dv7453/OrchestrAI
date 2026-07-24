@@ -10,7 +10,6 @@
 </p>
 
 <p align="center">
-  <a href="https://orchestrai-1.onrender.com"><img src="https://img.shields.io/badge/Live_Demo-Render-46E3B7?style=flat-square&logo=render&logoColor=white" alt="Live Demo" /></a>
   <a href="https://github.com/dv7453/OrchestrAI"><img src="https://img.shields.io/badge/GitHub-dv7453%2FOrchestrAI-181717?style=flat-square&logo=github" alt="GitHub" /></a>
   <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/LangGraph-State_Machine-1C3C3C?style=flat-square" alt="LangGraph" />
@@ -21,7 +20,7 @@
 </p>
 
 <p align="center">
-  <a href="#-live-demo">Demo</a> ·
+  <a href="#-hosted-demo-status">Demo status</a> ·
   <a href="#-why-orchestrai">Why</a> ·
   <a href="#-architecture">Architecture</a> ·
   <a href="#-langgraph-agent-graph">Graph</a> ·
@@ -48,11 +47,13 @@
 
 ---
 
-## Live Demo
+## Hosted demo status
 
-**https://orchestrai-1.onrender.com**
+The hosted demo is **no longer active** due to free-tier hosting limits (browser automation needs more RAM/CPU than free plans provide).
 
-Paste your own provider key (full BYOK) and run a task. The host does not store LLM keys.
+You can still **clone this repo and run the full stack locally** — see [Usage](#-usage) below.
+
+Sorry for the inconvenience.
 
 <p align="center">
   <img src="frontend/logos/groq-icon.png" alt="Groq" height="36" />
@@ -431,6 +432,4 @@ The Web UI is a **showcase**. The open-source product is the **graph + FastAPI c
 <p align="center">
   <sub>Built with LangGraph · browser-use · FastAPI · Playwright</sub><br/>
   <a href="https://github.com/dv7453/OrchestrAI">github.com/dv7453/OrchestrAI</a>
-  ·
-  <a href="https://orchestrai-1.onrender.com">Live Demo</a>
 </p>
