@@ -32,6 +32,7 @@ class RunRequest(BaseModel):
     task: str = Field(min_length=1)
     provider: str = "groq"
     model: str | None = None
+    groq_api_key: str | None = None
     openai_api_key: str | None = None
     headless: bool = False
     max_steps: int = 50
@@ -46,21 +47,19 @@ def _build_llm(request: RunRequest):
     from browser_use import ChatGroq, ChatOpenAI
 
     if request.provider == "openai":
-        api_key = request.openai_api_key or os.getenv("OPENAI_API_KEY")
+        api_key = (request.openai_api_key or "").strip()
         if not api_key:
-            raise ValueError("OpenAI API key is required for BYOK.")
+            raise ValueError("OpenAI API key is required (BYOK).")
         model = request.model or "gpt-4o"
         return ChatOpenAI(model=model, api_key=api_key)
 
     if request.provider != "groq":
         raise ValueError(f"Unsupported provider: {request.provider}")
 
-    api_key = os.getenv("GROQ_API_KEY")
+    api_key = (request.groq_api_key or "").strip()
     if not api_key:
-        raise ValueError("GROQ_API_KEY is not set in server environment variables.")
-    model = request.model or os.getenv(
-        "GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
-    )
+        raise ValueError("Groq API key is required (BYOK).")
+    model = request.model or "openai/gpt-oss-20b"
     return ChatGroq(model=model, api_key=api_key)
 
 
@@ -93,6 +92,13 @@ async def _run_agent(request: RunRequest, run_id: str, queue: asyncio.Queue):
             llm=llm,
             browser_profile=profile,
             register_should_stop_callback=should_stop,
+            # Keep prompts under Groq free-tier TPM (8k for gpt-oss).
+            use_vision=False,
+            flash_mode=True,
+            use_thinking=False,
+            max_history_items=8,
+            max_clickable_elements_length=12000,
+            max_actions_per_step=3,
         )
         _running_tasks[run_id]["agent"] = browser_agent
 
@@ -150,12 +156,9 @@ async def _run_agent(request: RunRequest, run_id: str, queue: asyncio.Queue):
 async def health():
     return {
         "status": "ok",
-        "groq_configured": bool(os.getenv("GROQ_API_KEY")),
-        "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
+        "byok": True,
         "default_provider": "groq",
-        "default_model": os.getenv(
-            "GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
-        ),
+        "default_model": "openai/gpt-oss-20b",
     }
 
 
@@ -175,15 +178,16 @@ async def stop_run(run_id: str):
 
 @app.post("/api/run")
 async def run_task(request: RunRequest):
-    if request.provider == "groq" and not os.getenv("GROQ_API_KEY"):
+    if request.provider == "groq" and not (request.groq_api_key or "").strip():
         raise HTTPException(
             status_code=400,
-            detail="GROQ_API_KEY is not set in server environment variables.",
+            detail="Groq API key is required (BYOK).",
         )
-    if request.provider == "openai" and not (
-        request.openai_api_key or os.getenv("OPENAI_API_KEY")
-    ):
-        raise HTTPException(status_code=400, detail="OpenAI API key is required for BYOK.")
+    if request.provider == "openai" and not (request.openai_api_key or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="OpenAI API key is required (BYOK).",
+        )
 
     run_id = os.urandom(8).hex()
     queue: asyncio.Queue = asyncio.Queue()

@@ -20,22 +20,22 @@ pip install -e '.[browser,server]'
 playwright install chromium
 
 cp .env.template .env
-# Add GROQ_API_KEY to .env
 
 cd frontend && ./start.sh
 ```
 
-Open **http://127.0.0.1:8765**
+Open **http://127.0.0.1:8765** and paste your own **Groq** or **OpenAI** API key in the UI (full BYOK).
 
 ## Environment
 
+OrchestrAI is **full BYOK** — LLM keys are not required on the server. Users provide keys in the UI (or API request body). Keys are not stored server-side.
+
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GROQ_API_KEY` | Yes (default) | Server-side Groq key |
-| `GROQ_MODEL` | No | Default: `meta-llama/llama-4-scout-17b-16e-instruct` |
-| `OPENAI_API_KEY` | Optional | For OpenAI BYOK from the UI |
+| `BROWSER_USE_HEADLESS` | No | `true` on cloud / Docker |
+| `PORT` | No | Server port (Render sets this) |
 
-Groq is the default provider (loaded from server env). OpenAI is optional bring-your-own-key in the web UI.
+API run body fields: `groq_api_key` or `openai_api_key` depending on `provider`.
 
 ## Architecture
 

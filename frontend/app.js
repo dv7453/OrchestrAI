@@ -1,4 +1,11 @@
 const API_BASE = window.location.origin;
+const STORAGE_KEYS = {
+  provider: "orchestrai.provider",
+  groqKey: "orchestrai.groq_api_key",
+  openaiKey: "orchestrai.openai_api_key",
+  groqModel: "orchestrai.groq_model",
+  openaiModel: "orchestrai.openai_model",
+};
 
 const providerCards = document.querySelectorAll(".provider-card");
 const groqSettings = document.getElementById("groq-settings");
@@ -15,6 +22,10 @@ const previewImage = document.getElementById("preview-image");
 const previewFrame = document.getElementById("preview-frame");
 const previewStep = document.getElementById("preview-step");
 const previewUrl = document.getElementById("preview-url");
+const groqKeyInput = document.getElementById("groq-key");
+const openaiKeyInput = document.getElementById("openai-key");
+const groqModelSelect = document.getElementById("groq-model");
+const openaiModelSelect = document.getElementById("openai-model");
 
 let currentRunId = null;
 let isRunning = false;
@@ -28,10 +39,16 @@ function setProvider(provider) {
     card.classList.toggle("selected", card.dataset.provider === provider);
   });
 
+  const input = document.querySelector(`input[name="provider"][value="${provider}"]`);
+  if (input) {
+    input.checked = true;
+  }
+
   const isGroq = provider === "groq";
   groqSettings.classList.toggle("hidden", !isGroq);
   openaiSettings.classList.toggle("hidden", isGroq);
-  statusProvider.textContent = isGroq ? "Groq (env key)" : "OpenAI (BYOK)";
+  statusProvider.textContent = isGroq ? "Groq (BYOK)" : "OpenAI (BYOK)";
+  localStorage.setItem(STORAGE_KEYS.provider, provider);
 }
 
 function setStatusPill(el, text, variant) {
@@ -169,6 +186,33 @@ function parseSseChunk(buffer) {
   };
 }
 
+function persistKeys() {
+  localStorage.setItem(STORAGE_KEYS.groqKey, groqKeyInput.value.trim());
+  localStorage.setItem(STORAGE_KEYS.openaiKey, openaiKeyInput.value.trim());
+  localStorage.setItem(STORAGE_KEYS.groqModel, groqModelSelect.value);
+  localStorage.setItem(STORAGE_KEYS.openaiModel, openaiModelSelect.value);
+}
+
+function loadPersistedSettings() {
+  const savedProvider = localStorage.getItem(STORAGE_KEYS.provider) || "groq";
+  const savedGroqKey = localStorage.getItem(STORAGE_KEYS.groqKey) || "";
+  const savedOpenaiKey = localStorage.getItem(STORAGE_KEYS.openaiKey) || "";
+  const savedGroqModel = localStorage.getItem(STORAGE_KEYS.groqModel);
+  const savedOpenaiModel = localStorage.getItem(STORAGE_KEYS.openaiModel);
+
+  groqKeyInput.value = savedGroqKey;
+  openaiKeyInput.value = savedOpenaiKey;
+
+  if (savedGroqModel) {
+    groqModelSelect.value = savedGroqModel;
+  }
+  if (savedOpenaiModel) {
+    openaiModelSelect.value = savedOpenaiModel;
+  }
+
+  setProvider(savedProvider);
+}
+
 async function handleEvent(event, data) {
   if (event === "started") {
     currentRunId = data.run_id;
@@ -206,31 +250,38 @@ async function handleEvent(event, data) {
 async function runTask() {
   const task = taskInput.value.trim();
   const provider = getSelectedProvider();
+  const groqKey = groqKeyInput.value.trim();
+  const openaiKey = openaiKeyInput.value.trim();
 
   if (!task) {
     appendLog("Enter a task before running.");
     return;
   }
 
-  if (provider === "openai" && !document.getElementById("openai-key").value.trim()) {
-    appendLog("Enter your OpenAI API key for BYOK.");
+  if (provider === "groq" && !groqKey) {
+    appendLog("Enter your Groq API key (BYOK).");
     return;
   }
+
+  if (provider === "openai" && !openaiKey) {
+    appendLog("Enter your OpenAI API key (BYOK).");
+    return;
+  }
+
+  persistKeys();
 
   const payload = {
     task,
     provider,
-    model:
-      provider === "groq"
-        ? document.getElementById("groq-model").value
-        : document.getElementById("openai-model").value,
-    openai_api_key: document.getElementById("openai-key").value.trim() || null,
+    model: provider === "groq" ? groqModelSelect.value : openaiModelSelect.value,
+    groq_api_key: provider === "groq" ? groqKey : null,
+    openai_api_key: provider === "openai" ? openaiKey : null,
     headless: document.getElementById("headless").checked,
   };
 
   resetPreview();
   setRunning(true);
-  appendLog(`Running with ${provider === "groq" ? "Groq (server env key)" : "OpenAI (BYOK)"}...`);
+  appendLog(`Running with ${provider === "groq" ? "Groq" : "OpenAI"} (BYOK)...`);
 
   try {
     const response = await fetch(`${API_BASE}/api/run`, {
@@ -301,11 +352,11 @@ async function checkBackend() {
       throw new Error("Backend unavailable");
     }
 
-    const data = await response.json();
+    await response.json();
     setStatusPill(statusBackend, "Connected", "connected");
 
     if (!isRunning) {
-      setBadge(data.groq_configured ? "Ready" : "No Groq key", data.groq_configured ? "ready" : "warn");
+      setBadge("BYOK Ready", "ready");
     }
   } catch {
     setStatusPill(statusBackend, "Offline", "offline");
@@ -323,9 +374,14 @@ providerCards.forEach((card) => {
   });
 });
 
+groqKeyInput.addEventListener("change", persistKeys);
+openaiKeyInput.addEventListener("change", persistKeys);
+groqModelSelect.addEventListener("change", persistKeys);
+openaiModelSelect.addEventListener("change", persistKeys);
+
 runBtn.addEventListener("click", runTask);
 stopBtn.addEventListener("click", stopTask);
 
-setProvider("groq");
+loadPersistedSettings();
 checkBackend();
 setInterval(checkBackend, 15000);

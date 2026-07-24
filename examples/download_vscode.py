@@ -8,7 +8,7 @@ from langgraph_browser_agent import LangGraphBrowserAgent
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-GROQ_MODEL = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 VSCODE_TASK = """
 Go to https://code.visualstudio.com/download and download Visual Studio Code for macOS.
